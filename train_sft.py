@@ -10,7 +10,12 @@ import torch._dynamo.config
 torch._dynamo.config.suppress_errors = True
 
 
-def train(pretrain, batch_size, exp_name):
+def train(pretrain, batch_size, exp_name, max_examples, reranked):
+    if max_examples:
+        max_examples = int(max_examples)
+    if int(reranked) == 1:
+        reranked = True
+    
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
     cfg = get_configs("gpt2-medium") # change this line to select different models
@@ -24,14 +29,23 @@ def train(pretrain, batch_size, exp_name):
     model = GPT.from_pretrained(cfg)
     
     # load SFT dataset
-    train_ds = EYLSFTStaticDataset(block_size=1024,
-                                   split='train',
-                                   max_examples=None,
-                                   tokenizer_name="tiktoken/gpt2")
+    if not reranked:
+        train_ds = EYLSFTStaticDataset(block_size=1024,
+                                    split='train',
+                                    max_examples=None,
+                                    tokenizer_name="tiktoken/gpt2")
+    else:
+        if not max_examples:
+            print("no max_examples set, trainning dataset the same as normal")
+        train_ds = EYLSFTStaticDataset(block_size=1024,
+                                    split='train_reranked',
+                                    max_examples=max_examples,
+                                    tokenizer_name="tiktoken/gpt2")
+        
     test_ds = EYLSFTStaticDataset(block_size=1024,
-                                  split='test',
-                                  max_examples=None,
-                                  tokenizer_name="tiktoken/gpt2")
+                                split='test',
+                                max_examples=None,
+                                tokenizer_name="tiktoken/gpt2")
     
     trainer = SFTTrainer(cfg, device, model, train_ds, test_ds)
     trainer.fit()
@@ -41,10 +55,11 @@ def train(pretrain, batch_size, exp_name):
 @click.option('--pretrain', '-p', default="huggingface")
 @click.option('--batch-size', '-b', default=1)
 @click.option('--exp-name', '-n', default="default")
-def main(pretrain, batch_size, exp_name):
+@click.option('--max-examples', '-m', default=None)
+@click.option('--reranked', '-r', default=0)
+def main(pretrain, batch_size, exp_name, max_examples, reranked):
     torch.manual_seed(1234)
-    train(pretrain, batch_size, exp_name)
-
+    train(pretrain, batch_size, exp_name, max_examples, reranked)
 
 if __name__ == "__main__":
     main()
