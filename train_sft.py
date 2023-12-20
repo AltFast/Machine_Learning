@@ -10,7 +10,12 @@ import torch._dynamo.config
 torch._dynamo.config.suppress_errors = True
 
 
-def train(pretrain, batch_size, exp_name, max_examples = None, reranked = False):
+def train(pretrain, batch_size, exp_name, max_examples, reranked):
+    if max_examples:
+        max_examples = int(max_examples)
+    if int(reranked) == 1:
+        reranked = True
+    
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
     cfg = get_configs("gpt2-medium") # change this line to select different models
@@ -51,7 +56,7 @@ def train(pretrain, batch_size, exp_name, max_examples = None, reranked = False)
 @click.option('--batch-size', '-b', default=1)
 @click.option('--exp-name', '-n', default="default")
 @click.option('--max-examples', '-m', default=None)
-@click.option('--reranked', '-r', default=False)
+@click.option('--reranked', '-r', default=0)
 def main(pretrain, batch_size, exp_name, max_examples, reranked):
     torch.manual_seed(1234)
     train(pretrain, batch_size, exp_name, max_examples, reranked)
