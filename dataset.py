@@ -196,7 +196,10 @@ class EYLSFTStaticDataset(Dataset):
         if split == "train":
             with open("./sft_train.json") as fp:
                 dataset = json.load(fp)
-        else:
+        elif split == "train_reranked":
+            with open("./sft_train_reranked.json") as fp:
+                dataset = json.load(fp)
+        elif split == "test":
             with open("./sft_test.json") as fp:
                 dataset = json.load(fp)
         self.tokens = []
