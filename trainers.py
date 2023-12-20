@@ -10,6 +10,7 @@ from configs import TrainingConfig
 import numpy as np
 import pandas as pd
 from utils import logprobs_from_logits
+from early_stopping import EarlyStopping
 
 class Trainer:
 
@@ -92,7 +93,7 @@ class SFTTrainer(Trainer):
 
     def fit(self):
         # TODO: complete the SFT training.
-
+        stopper = EarlyStopping(self)
         eval_samples = 200    # 200 samples for each evaluation
         eval_interval = 500  # evaluate model every 500 iteration
         Loss_Train = []
@@ -100,25 +101,39 @@ class SFTTrainer(Trainer):
 
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.cfg.lr)
         self.model = self.model.to(self.device)
+        
         for iter in range(self.cfg.max_steps):
+            
             if iter % eval_interval == 0:  # Evaluate train error and test error
                 Er_in, Er_out = self.estimate_loss(eval_samples)
                 print(f"step {iter}: train loss {Er_in:.4f}, val loss {Er_out:.4f}")
                 Loss_Train.append(Er_in.cpu().item())
                 Loss_Val.append(Er_out.cpu().item())
+                stopper(Er_out)
+                if stopper.early_stop:
+                    self.save_loss(Loss_Train, Loss_Val)
+                    print("Early Stopping...")
+                    return Loss_Train, Loss_Val
+                    # break
+                elif iter == self.cfg.max_steps - 1:
+                    self.save_states(self.cfg.max_steps, True)
+                    self.save_loss(Loss_Train, Loss_Val)
+                    print("Normal Stopping...Model saved.")
+                    return Loss_Train, Loss_Val
+                    
             x, y = next(self.train_dataloader)
             x = x.to(self.device)
             y = y.to(self.device)
             logits = self.model(x)
             loss = - logprobs_from_logits(logits, y).mean()
 
-            print(f"step {iter}: train loss {loss.item():.4f}")
+            if iter % 10 == 0: print(f"step {iter}: train loss {loss.item():.4f}")
             loss.backward()
             self.optimizer.step()
             self.optimizer.zero_grad(set_to_none=True)
 
-        self.save_states(self.cfg.max_steps, is_last=True)
-        self.save_loss(Loss_Train, Loss_Val)
+        # self.save_states(self.cfg.max_steps, is_last=True)
+        # self.save_loss(Loss_Train, Loss_Val)
         return Loss_Train, Loss_Val
 
     def estimate_loss(self, eval_samples):
